@@ -3,9 +3,9 @@ scriptencoding utf-8
 " vimscript {{{1
 
 function! editorconfig#local_vimrc#execute(value) abort
-  let path = fnamemodify(a:value, ':p')
+  let l:path = fnamemodify(a:value, ':p')
 
-  if filereadable(path)
+  if filereadable(l:path)
     source `=path`
   else
     if get(g:, 'editorconfig_verbose', 0)

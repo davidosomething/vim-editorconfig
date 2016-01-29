@@ -15,18 +15,18 @@ function! editorconfig#load() abort
   augroup plugin-editorconfig-local
     autocmd!
   augroup END
-  let filepath = expand('%:p')
-  let rule = s:scan(fnamemodify(filepath, ':h'))
-  let props = s:filter_matched(rule, filepath)
-  if empty(props) | return | endif
-  let b:editorconfig = props
-  call s:apply(props)
+  let l:filepath = expand('%:p')
+  let l:rule = s:scan(fnamemodify(l:filepath, ':h'))
+  let l:props = s:filter_matched(l:rule, l:filepath)
+  if empty(l:props) | return | endif
+  let b:editorconfig = l:props
+  call s:apply(l:props)
 endfunction
 
 function! editorconfig#omnifunc(findstart, base) abort
   if a:findstart
-    let pos = match(getline('.'), '\%' . col('.') . 'c\k\+\zs\s*=')
-    return pos+1
+    let l:pos = match(getline('.'), '\%' . col('.') . 'c\k\+\zs\s*=')
+    return l:pos+1
   else
     return filter(sort(s:properties()), 'stridx(v:val, a:base) == 0')
   endif
@@ -41,17 +41,17 @@ endfunction
 " true space 2
 
 function! s:scan(path) abort "{{{
-  let editorconfig = findfile(s:editorconfig, fnameescape(a:path) . ';')
-  if empty(editorconfig) || !filereadable(editorconfig) || a:path is# fnamemodify(a:path, ':h')
+  let l:editorconfig = findfile(s:editorconfig, fnameescape(a:path) . ';')
+  if empty(l:editorconfig) || !filereadable(l:editorconfig) || a:path is# fnamemodify(a:path, ':h')
     return []
   endif
-  let base_path = fnamemodify(editorconfig, ':p:h')
-  let [is_root, _] = s:parse(s:trim(readfile(editorconfig)))
-  if is_root
-    call s:set_cwd(base_path)
-    return _
+  let l:base_path = fnamemodify(l:editorconfig, ':p:h')
+  let [l:is_root, l:_] = s:parse(s:trim(readfile(l:editorconfig)))
+  if l:is_root
+    call s:set_cwd(l:base_path)
+    return l:_
   endif
-  return _ + s:scan(fnamemodify(base_path, ':h'))
+  return l:_ + s:scan(fnamemodify(l:base_path, ':h'))
 endfunction "}}}
 
 " Parse lines into rule lists
@@ -66,14 +66,14 @@ endfunction "}}}
 " Vim(echoerr):editorconfig: failed to parse [*
 
 function! s:parse(lines) abort "{{{
-  let [unparsed, is_root] = s:parse_properties(a:lines)
-  let _ = []
-  while len(unparsed) > 0
-    let [unparsed, pattern] = s:parse_pattern(unparsed)
-    let [unparsed, properties] = s:parse_properties(unparsed)
-    let _ += [[pattern, properties]]
+  let [l:unparsed, l:is_root] = s:parse_properties(a:lines)
+  let l:_ = []
+  while len(l:unparsed) > 0
+    let [l:unparsed, l:pattern] = s:parse_pattern(l:unparsed)
+    let [l:unparsed, l:properties] = s:parse_properties(l:unparsed)
+    let l:_ += [[l:pattern, l:properties]]
   endwhile
-  return [get(is_root, 'root', 'false') ==# 'true', _]
+  return [get(l:is_root, 'root', 'false') ==# 'true', l:_]
 endfunction "}}}
 
 " Parse file glob pattern
@@ -86,9 +86,9 @@ endfunction "}}}
 
 function! s:parse_pattern(lines) abort "{{{
   if !len(a:lines) | return [[], ''] | endif
-  let m = matchstr(a:lines[0], '^\[\zs.\+\ze\]$')
-  if !empty(m)
-    return [a:lines[1 :], m]
+  let l:m = matchstr(a:lines[0], '^\[\zs.\+\ze\]$')
+  if !empty(l:m)
+    return [a:lines[1 :], l:m]
   else
     if get(g:, 'editorconfig_verbose', 0)
       echoerr printf('editorconfig: failed to parse %s', a:lines[0])
@@ -106,25 +106,37 @@ endfunction "}}}
 " [['[*]'], {'indent_size': 2}]
 
 function! s:parse_properties(lines) abort "{{{
-  let _ = {}
-  if !len(a:lines) | return [[], _] | endif
-  for i in range(len(a:lines))
-    let line = a:lines[i]
-    let m = matchstr(line, '^\[\zs.\+\ze\]$')
-    if !empty(m)
-      return [a:lines[i :], _]
+  let l:_ = {}
+  if !len(a:lines) | return [[], l:_] | endif
+  for l:i in range(len(a:lines))
+
+    let l:line = a:lines[l:i]
+
+    " Parse comments
+    let l:m = matchstr(l:line, '^#')
+    if !empty(l:m)
+      return [[], {}]
     endif
-    let splitted = split(line, '\s*=\s*')
-    if len(splitted) < 2
+
+    " Parse file formats
+    let l:m = matchstr(l:line, '^\[\zs.\+\ze\]$')
+    if !empty(l:m)
+      return [a:lines[l:i :], l:_]
+    endif
+
+    " Parse properties
+    let l:splitted = split(l:line, '\s*=\s*')
+    if len(l:splitted) < 2
       if get(g:, 'editorconfig_verbose', 0)
-        echoerr printf('editorconfig: failed to parse %s', line)
+        echoerr printf('editorconfig: failed to parse %s on line %d', l:line, l:i)
       endif
       return [[], {}]
     endif
-    let [key, val] = splitted
-    let _[key] = s:eval(val)
+    let [l:key, l:val] = l:splitted
+    let l:_[l:key] = s:eval(l:val)
+
   endfor
-  return [a:lines[i+1 :], _]
+  return [a:lines[l:i+1 :], l:_]
 endfunction "}}}
 
 " >>> echo s:eval('2')
@@ -137,7 +149,7 @@ function! s:eval(val) abort "{{{
 endfunction "}}}
 
 function! s:properties() abort "{{{
-  return map(s:globpath(s:scriptdir, '*.vim'), 'fnamemodify(v:val, ":t:r")')
+  return map(s:globpath(s:scriptdir, '*.vim'), "fnamemodify(v:val, ':t:r')")
 endfunction "}}}
 
 function! s:globpath(path, expr) abort "{{{
@@ -157,8 +169,8 @@ endfunction "}}}
 " bar
 
 function! s:remove_comment(line) abort "{{{
-  let pos = match(a:line, '[;#].\+')
-  return pos == -1 ? a:line : pos == 0 ? '' : a:line[: pos-1]
+  let l:pos = match(a:line, '[;#].\+')
+  return l:pos == -1 ? a:line : l:pos == 0 ? '' : a:line[: l:pos-1]
 endfunction "}}}
 
 function! s:set_cwd(dir) abort "{{{
@@ -168,27 +180,27 @@ function! s:set_cwd(dir) abort "{{{
 endfunction "}}}
 
 function! s:apply(property) abort "{{{
-  for [key, val] in items(a:property)
+  for [l:key, l:val] in items(a:property)
     try
-      call editorconfig#{tolower(key)}#execute(val)
+      call editorconfig#{tolower(l:key)}#execute(l:val)
     catch /^Vim\%((\a\+)\)\=:E117/
-      echohl WarningMsg | echomsg 'editorconfig: Unsupported property:' key | echohl NONE
+      echohl WarningMsg | echomsg 'editorconfig: Unsupported property:' l:key | echohl NONE
     endtry
   endfor
 endfunction "}}}
 
 function! s:filter_matched(rule, path) abort "{{{
-  let _ = {}
-  call map(filter(copy(a:rule), 'a:path =~ s:regexp(v:val[0])'), 'extend(_, v:val[1], "keep")')
-  return _
+  let l:_ = {}
+  call map(filter(copy(a:rule), 'a:path =~ s:regexp(v:val[0])'), "extend(l:_, v:val[1], 'keep')")
+  return l:_
 endfunction "}}}
 
 function! s:regexp(pattern) abort "{{{
-  let pattern = escape(a:pattern, '.\')
-  for rule in s:regexp_rules
-    let pattern = substitute(pattern, rule[0], rule[1], 'g')
+  let l:pattern = escape(a:pattern, '.\')
+  for l:rule in s:regexp_rules
+    let l:pattern = substitute(l:pattern, l:rule[0], l:rule[1], 'g')
   endfor
-  return '\<'. pattern . '$'
+  return '\<'. l:pattern . '$'
 endfunction "}}}
 let s:regexp_rules =
       \ [ ['\[!', '[^']
